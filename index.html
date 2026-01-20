@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antipodes</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background: #1a1a2e;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        .coords {
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        .instructions {
+            font-size: 0.85rem;
+            color: yellow;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+        .map-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .map-label {
+            background: #2d2d44;
+            color: white;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+        .map {
+            flex: 1;
+            min-height: 0;
+        }
+        .map-panel:first-child {
+            border-right: 2px solid #1a1a2e;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Antipodes</h1>
+        <div class="instructions">Pan and zoom one map and see its antipode in the other map</div>
+        <div class="coords" id="coords"></div>
+    </header>
+    <div class="container">
+        <div class="map-panel">
+            <div class="map-label">Location</div>
+            <div class="map" id="map-left"></div>
+        </div>
+        <div class="map-panel">
+            <div class="map-label">Antipode</div>
+            <div class="map" id="map-right"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize both maps
+        const mapLeft = L.map('map-left', {
+            center: [40.7, -74.0], // New York
+            zoom: 4
+        });
+
+        const mapRight = L.map('map-right', {
+            center: [-40.7, 106.0], // Antipode of New York
+            zoom: 4
+        });
+
+        // Add OpenStreetMap tiles to both
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(mapLeft);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(mapRight);
+
+        // Calculate antipode coordinates
+        function getAntipode(lat, lng) {
+            return {
+                lat: -lat,
+                lng: lng > 0 ? lng - 180 : lng + 180
+            };
+        }
+
+        // Sync flag to prevent infinite loops
+        let syncing = false;
+
+        // Sync function
+        function syncMaps(sourceMap, targetMap, isSourceLeft) {
+            if (syncing) return;
+            syncing = true;
+
+            const center = sourceMap.getCenter();
+            const zoom = sourceMap.getZoom();
+            const antipode = getAntipode(center.lat, center.lng);
+
+            targetMap.setView([antipode.lat, antipode.lng], zoom, { animate: false });
+
+            // Update coordinates display
+            const coordsEl = document.getElementById('coords');
+            if (isSourceLeft) {
+                coordsEl.textContent = `Location: ${center.lat.toFixed(4)}°, ${center.lng.toFixed(4)}° → Antipode: ${antipode.lat.toFixed(4)}°, ${antipode.lng.toFixed(4)}°`;
+            } else {
+                coordsEl.textContent = `Location: ${antipode.lat.toFixed(4)}°, ${antipode.lng.toFixed(4)}° → Antipode: ${center.lat.toFixed(4)}°, ${center.lng.toFixed(4)}°`;
+            }
+
+            syncing = false;
+        }
+
+        // Attach event listeners for move and zoom
+        mapLeft.on('move', () => syncMaps(mapLeft, mapRight, true));
+        mapRight.on('move', () => syncMaps(mapRight, mapLeft, false));
+
+        // Initial sync
+        syncMaps(mapLeft, mapRight, true);
+    </script>
+</body>
+</html>
