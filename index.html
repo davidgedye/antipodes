@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Antipodes</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -58,8 +58,29 @@
         .map-label {
             background: #2d2d44;
             color: white;
-            padding: 8px 16px;
+            padding: 0 16px;
+            height: 36px;
             font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .search-box {
+            flex: 1;
+            max-width: 300px;
+            padding: 4px 8px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: white;
+            font-size: 0.85rem;
+        }
+        .search-box::placeholder {
+            color: #888;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #888;
         }
         .map {
             flex: 1;
@@ -68,52 +89,123 @@
         .map-panel:first-child {
             border-right: 2px solid #1a1a2e;
         }
+        .map {
+            position: relative;
+        }
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1;
+        }
+        .crosshair svg {
+            width: 40px;
+            height: 40px;
+        }
     </style>
 </head>
 <body>
     <header>
         <h1>Antipodes</h1>
-        <div class="instructions">Pan and zoom one map and see its antipode in the other map</div>
+        <div class="instructions">Click to stop spinning, then pan and zoom to explore</div>
         <div class="coords" id="coords"></div>
     </header>
     <div class="container">
         <div class="map-panel">
-            <div class="map-label">Location</div>
-            <div class="map" id="map-left"></div>
+            <div class="map-label">
+                <span>Location</span>
+                <input type="text" class="search-box" id="search" placeholder="Search city, country, address...">
+            </div>
+            <div class="map" id="map-left">
+                <div class="crosshair">
+                    <svg viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="12" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                        <line x1="20" y1="4" x2="20" y2="14" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                        <line x1="20" y1="26" x2="20" y2="36" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                        <line x1="4" y1="20" x2="14" y2="20" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                        <line x1="26" y1="20" x2="36" y2="20" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                    </svg>
+                </div>
+            </div>
         </div>
         <div class="map-panel">
             <div class="map-label">Antipode</div>
-            <div class="map" id="map-right"></div>
+            <div class="map" id="map-right">
+                <div class="crosshair">
+                    <svg viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="12" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                        <line x1="20" y1="4" x2="20" y2="14" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                        <line x1="20" y1="26" x2="20" y2="36" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                        <line x1="4" y1="20" x2="14" y2="20" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                        <line x1="26" y1="20" x2="36" y2="20" stroke="rgba(255,255,255,0.7)" stroke-width="1"/>
+                    </svg>
+                </div>
+            </div>
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+    <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
     <script>
-        // Initialize both maps
-        const mapLeft = L.map('map-left', {
-            center: [40.7, -74.0], // New York
-            zoom: 4
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZGF2aWRnZWR5ZSIsImEiOiJjbWtvejk5bWkwYnBxM3JxNTE0ZjN6ZmowIn0.CaVScVkAo9uhpyebGqaQNg';
+
+        // Random starting point
+        const startLng = Math.random() * 360 - 180;
+        const startLat = Math.random() * 140 - 70; // Avoid extreme poles for better view
+        const startAntipode = {
+            lng: startLng > 0 ? startLng - 180 : startLng + 180,
+            lat: -startLat
+        };
+
+        // Random initial bearing for great circle path (0-360 degrees)
+        let currentBearing = Math.random() * 360;
+        const distancePerFrame = 25; // km per frame - slower on slow devices, always smooth
+
+        // Initialize both maps with globe projection
+        const mapLeft = new mapboxgl.Map({
+            container: 'map-left',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [startLng, startLat],
+            zoom: 2,
+            projection: 'globe'
         });
 
-        const mapRight = L.map('map-right', {
-            center: [-40.7, 106.0], // Antipode of New York
-            zoom: 4
+        const mapRight = new mapboxgl.Map({
+            container: 'map-right',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [startAntipode.lng, startAntipode.lat],
+            zoom: 2,
+            projection: 'globe'
         });
 
-        // Add OpenStreetMap tiles to both
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(mapLeft);
+        // Add atmosphere effect when globe loads
+        mapLeft.on('style.load', () => {
+            mapLeft.setFog({
+                color: 'rgb(186, 210, 235)',
+                'high-color': 'rgb(36, 92, 223)',
+                'horizon-blend': 0.02,
+                'space-color': 'rgb(11, 11, 25)',
+                'star-intensity': 0.6
+            });
+        });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(mapRight);
+        mapRight.on('style.load', () => {
+            mapRight.setFog({
+                color: 'rgb(186, 210, 235)',
+                'high-color': 'rgb(36, 92, 223)',
+                'horizon-blend': 0.02,
+                'space-color': 'rgb(11, 11, 25)',
+                'star-intensity': 0.6
+            });
+        });
 
         // Calculate antipode coordinates
-        function getAntipode(lat, lng) {
+        function getAntipode(lng, lat) {
             return {
-                lat: -lat,
-                lng: lng > 0 ? lng - 180 : lng + 180
+                lng: lng > 0 ? lng - 180 : lng + 180,
+                lat: -lat
             };
         }
 
@@ -127,9 +219,16 @@
 
             const center = sourceMap.getCenter();
             const zoom = sourceMap.getZoom();
-            const antipode = getAntipode(center.lat, center.lng);
+            const bearing = sourceMap.getBearing();
+            const pitch = sourceMap.getPitch();
+            const antipode = getAntipode(center.lng, center.lat);
 
-            targetMap.setView([antipode.lat, antipode.lng], zoom, { animate: false });
+            targetMap.jumpTo({
+                center: [antipode.lng, antipode.lat],
+                zoom: zoom,
+                bearing: -bearing, // Mirror the bearing
+                pitch: pitch
+            });
 
             // Update coordinates display
             const coordsEl = document.getElementById('coords');
@@ -146,8 +245,79 @@
         mapLeft.on('move', () => syncMaps(mapLeft, mapRight, true));
         mapRight.on('move', () => syncMaps(mapRight, mapLeft, false));
 
-        // Initial sync
-        syncMaps(mapLeft, mapRight, true);
+        // Initial sync after maps load
+        mapLeft.on('load', () => syncMaps(mapLeft, mapRight, true));
+
+        // Spinning animation
+        let isSpinning = true;
+        let animationId = null;
+
+        function spin() {
+            if (!isSpinning) return;
+
+            const center = mapLeft.getCenter();
+            const currentPoint = turf.point([center.lng, center.lat]);
+
+            // Calculate next point along the great circle
+            const destination = turf.destination(currentPoint, distancePerFrame, currentBearing, { units: 'kilometers' });
+            const [newLng, newLat] = destination.geometry.coordinates;
+
+            // Calculate the forward bearing to continue the great circle from the new point
+            const reverseBearing = turf.bearing(destination, currentPoint);
+            currentBearing = (reverseBearing + 180) % 360;
+
+            mapLeft.setCenter([newLng, newLat]);
+            animationId = requestAnimationFrame(spin);
+        }
+
+        // Start spinning after map loads
+        mapLeft.on('load', () => {
+            spin();
+        });
+
+        // Stop spinning on click or drag
+        function stopSpinning() {
+            if (isSpinning) {
+                isSpinning = false;
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+            }
+        }
+
+        mapLeft.on('mousedown', stopSpinning);
+        mapRight.on('mousedown', stopSpinning);
+        mapLeft.on('touchstart', stopSpinning);
+        mapRight.on('touchstart', stopSpinning);
+
+        // Search functionality
+        const searchBox = document.getElementById('search');
+        searchBox.addEventListener('focus', stopSpinning);
+        searchBox.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                const query = searchBox.value.trim();
+                if (!query) return;
+                stopSpinning();
+
+                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&limit=1`;
+
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (data.features && data.features.length > 0) {
+                        const [lng, lat] = data.features[0].center;
+                        mapLeft.flyTo({
+                            center: [lng, lat],
+                            zoom: 10,
+                            essential: true
+                        });
+                    }
+                } catch (err) {
+                    console.error('Search failed:', err);
+                }
+            }
+        });
     </script>
 </body>
 </html>
