@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Antipodes - Portal</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            background: #0b0b19;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        .map-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Back map (location) - fully visible underneath */
+        #map-back {
+            z-index: 1;
+        }
+
+        /* Front map (antipode/portal) - on top, clipped to portal shape */
+        #map-front {
+            z-index: 2;
+            clip-path: var(--portal-clip, circle(0px at 50% 50%));
+            pointer-events: none;
+        }
+
+        /* Portal ring - SVG based to match ragged clip-path */
+        .portal-ring-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 3;
+            opacity: var(--ring-opacity, 0);
+        }
+
+        /* Resize hit area - invisible but captures pointer events */
+        .resize-ring {
+            display: none; /* Handled via JavaScript now */
+        }
+
+        /* Labels */
+        .label {
+            position: absolute;
+            color: white;
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 4px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .label-front {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, calc(-1 * var(--portal-radius-px, 0px) - 30px));
+        }
+
+        /* Coordinates */
+        .coords {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 0.75rem;
+            padding: 8px 16px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 4px;
+            z-index: 10;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        /* Instructions */
+        .instructions {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: yellow;
+            font-size: 0.8rem;
+            padding: 8px 16px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 4px;
+            z-index: 10;
+            opacity: var(--instructions-opacity, 0);
+            transition: opacity 0.5s;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="map-back" class="map-container"></div>
+    <div id="map-front" class="map-container"></div>
+
+    <svg class="portal-ring-svg" id="portal-ring-svg">
+        <defs>
+            <filter id="ring-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur"/>
+                <feOffset in="blur" dx="0" dy="0" result="offsetBlur"/>
+                <feFlood flood-color="#000" flood-opacity="0.8"/>
+                <feComposite in2="offsetBlur" operator="in"/>
+                <feMerge>
+                    <feMergeNode/>
+                    <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+            </filter>
+            <clipPath id="inverted-clip" clipPathUnits="userSpaceOnUse">
+                <path id="inverted-path" fill-rule="evenodd" d="M0,0 L10000,0 L10000,10000 L0,10000 Z"/>
+            </clipPath>
+        </defs>
+        <polygon id="ring-outer" fill="rgba(0,0,0,0.18)" stroke="#2a1a0f" stroke-width="3" filter="url(#ring-shadow)"/>
+    </svg>
+    <div class="resize-ring" id="resize-ring"></div>
+
+    <div class="label label-front">Antipode</div>
+
+    <div class="coords" id="coords"></div>
+
+    <div class="instructions">Touch to stop spinning, then drag to explore</div>
+
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+    <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZGF2aWRnZWR5ZSIsImEiOiJjbWtvejk5bWkwYnBxM3JxNTE0ZjN6ZmowIn0.CaVScVkAo9uhpyebGqaQNg';
+
+        // Random starting point
+        const startLng = Math.random() * 360 - 180;
+        const startLat = Math.random() * 140 - 70;
+
+        function getAntipode(lng, lat) {
+            return {
+                lng: lng > 0 ? lng - 180 : lng + 180,
+                lat: -lat
+            };
+        }
+
+        const startAntipode = getAntipode(startLng, startLat);
+
+        // Portal animation settings
+        const PORTAL_GLOBE_RATIO = 0.25; // portal radius as fraction of globe radius
+        const PORTAL_OPEN_DURATION = 2000; // ms
+        const PORTAL_MIN_RATIO = 0.10;
+        const PORTAL_MAX_RATIO = 0.90;
+
+        // Generate ragged circle clip-path (stored points for consistent shape)
+        const raggedPoints = [];
+        const NUM_POINTS = 72;
+        const VARIATION = 0.06;
+        for (let i = 0; i < NUM_POINTS; i++) {
+            raggedPoints.push(1 + (Math.random() - 0.5) * 2 * VARIATION);
+        }
+
+        function generateRaggedPaths(radiusPx) {
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+            const svgCoords = [];
+            const clipCoords = [];
+            raggedPoints.forEach((variation, i) => {
+                const angle = (i / NUM_POINTS) * Math.PI * 2;
+                const r = radiusPx * variation;
+                const x = cx + Math.cos(angle) * r;
+                const y = cy + Math.sin(angle) * r;
+                svgCoords.push({ x, y });
+                clipCoords.push(`${x}px ${y}px`);
+            });
+            return {
+                clipPath: `polygon(${clipCoords.join(', ')})`,
+                svgPoints: svgCoords.map(p => `${p.x},${p.y}`).join(' ')
+            };
+        }
+
+        // Current portal radius (can be modified by resize)
+        let currentPortalRatio = PORTAL_GLOBE_RATIO;
+
+        // Calculate the rendered globe radius in pixels by projecting map coordinates
+        function getGlobeRadiusPixels(map) {
+            const center = map.getCenter();
+            const centerScreen = map.project([center.lng, center.lat]);
+
+            // Project a point 90 degrees of longitude away
+            // At the equator, this represents a quarter of the globe circumference
+            const offsetLng = center.lng + 90 > 180 ? center.lng - 90 : center.lng + 90;
+            const edgeScreen = map.project([offsetLng, center.lat]);
+
+            const dx = edgeScreen.x - centerScreen.x;
+            const dy = edgeScreen.y - centerScreen.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // Initialize maps - back shows location, front (portal) shows antipode
+        const mapBack = new mapboxgl.Map({
+            container: 'map-back',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [startLng, startLat],
+            zoom: 1.8,
+            projection: 'globe'
+        });
+
+        const mapFront = new mapboxgl.Map({
+            container: 'map-front',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [startAntipode.lng, startAntipode.lat],
+            zoom: 1.8,
+            projection: 'globe'
+        });
+
+        // Add atmosphere effect
+        [mapBack, mapFront].forEach(map => {
+            map.on('style.load', () => {
+                map.setFog({
+                    color: 'rgb(186, 210, 235)',
+                    'high-color': 'rgb(36, 92, 223)',
+                    'horizon-blend': 0.02,
+                    'space-color': 'rgb(11, 11, 25)',
+                    'star-intensity': 0.6
+                });
+            });
+        });
+
+        // Sync maps
+        let syncing = false;
+
+        function syncMaps(sourceMap, targetMap, sourceIsFront) {
+            if (syncing) return;
+            syncing = true;
+
+            const center = sourceMap.getCenter();
+            const zoom = sourceMap.getZoom();
+            const bearing = sourceMap.getBearing();
+            const pitch = sourceMap.getPitch();
+            const antipode = getAntipode(center.lng, center.lat);
+
+            targetMap.jumpTo({
+                center: [antipode.lng, antipode.lat],
+                zoom: zoom,
+                bearing: -bearing,
+                pitch: pitch
+            });
+
+            // Update coordinates
+            const coordsEl = document.getElementById('coords');
+            if (sourceIsFront) {
+                coordsEl.innerHTML = `Location: ${center.lat.toFixed(2)}°, ${center.lng.toFixed(2)}°<br>Antipode: ${antipode.lat.toFixed(2)}°, ${antipode.lng.toFixed(2)}°`;
+            } else {
+                coordsEl.innerHTML = `Location: ${antipode.lat.toFixed(2)}°, ${antipode.lng.toFixed(2)}°<br>Antipode: ${center.lat.toFixed(2)}°, ${center.lng.toFixed(2)}°`;
+            }
+
+            syncing = false;
+        }
+
+        mapBack.on('move', () => syncMaps(mapBack, mapFront, true));
+        mapFront.on('move', () => syncMaps(mapFront, mapBack, false));
+
+        // Update portal size and shape
+        function updatePortal(radiusPx) {
+            const root = document.documentElement;
+            const paths = generateRaggedPaths(radiusPx);
+            root.style.setProperty('--portal-clip', paths.clipPath);
+            root.style.setProperty('--portal-diameter', `${radiusPx * 2}px`);
+            root.style.setProperty('--portal-radius-px', `${radiusPx}px`);
+            // Update SVG ring polygon
+            document.getElementById('ring-outer').setAttribute('points', paths.svgPoints);
+        }
+
+        // Portal opening animation
+        function animatePortalOpen() {
+            const startTime = performance.now();
+            const root = document.documentElement;
+
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / PORTAL_OPEN_DURATION, 1);
+
+                // Ease out cubic for smooth deceleration
+                const eased = 1 - Math.pow(1 - progress, 3);
+
+                // Calculate portal size based on rendered globe radius
+                const globeRadius = getGlobeRadiusPixels(mapBack);
+                const finalPortalRadius = globeRadius * currentPortalRatio;
+                const currentRadiusPx = eased * finalPortalRadius;
+
+                updatePortal(currentRadiusPx);
+                root.style.setProperty('--ring-opacity', eased);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    root.style.setProperty('--instructions-opacity', '1');
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // Spinning animation
+        let isSpinning = true;
+        let animationId = null;
+        let currentBearing = Math.random() * 360;
+        const distancePerFrame = 25;
+
+        function spin() {
+            if (!isSpinning) return;
+
+            const center = mapBack.getCenter();
+            const currentPoint = turf.point([center.lng, center.lat]);
+            const destination = turf.destination(currentPoint, distancePerFrame, currentBearing, { units: 'kilometers' });
+            const [newLng, newLat] = destination.geometry.coordinates;
+
+            const reverseBearing = turf.bearing(destination, currentPoint);
+            currentBearing = (reverseBearing + 180) % 360;
+
+            mapBack.setCenter([newLng, newLat]);
+            animationId = requestAnimationFrame(spin);
+        }
+
+        function stopSpinning() {
+            if (isSpinning) {
+                isSpinning = false;
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+                // Fade out instructions
+                document.documentElement.style.setProperty('--instructions-opacity', '0');
+            }
+        }
+
+        // Start animations when back map loads
+        mapBack.on('load', () => {
+            syncMaps(mapBack, mapFront, true);
+            animatePortalOpen();
+            spin();
+        });
+
+        // Stop spinning on interaction
+        mapFront.on('mousedown', stopSpinning);
+        mapBack.on('mousedown', stopSpinning);
+        mapFront.on('touchstart', stopSpinning);
+        mapBack.on('touchstart', stopSpinning);
+
+        // Resize portal by dragging near the edge
+        let isResizing = false;
+        const RESIZE_THRESHOLD = 30; // pixels from edge to trigger resize
+
+        function getDistanceFromCenter(e) {
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return Math.sqrt((clientX - cx) ** 2 + (clientY - cy) ** 2);
+        }
+
+        function getCurrentPortalRadius() {
+            return getGlobeRadiusPixels(mapBack) * currentPortalRatio;
+        }
+
+        function isNearPortalEdge(e) {
+            const distance = getDistanceFromCenter(e);
+            const portalRadius = getCurrentPortalRadius();
+            return Math.abs(distance - portalRadius) < RESIZE_THRESHOLD;
+        }
+
+        function isInsidePortal(e) {
+            const distance = getDistanceFromCenter(e);
+            const portalRadius = getCurrentPortalRadius();
+            return distance < portalRadius - RESIZE_THRESHOLD;
+        }
+
+        const mapFrontEl = document.getElementById('map-front');
+
+        function updatePointerEvents(e) {
+            if (isInsidePortal(e)) {
+                mapFrontEl.style.pointerEvents = 'auto';
+            } else {
+                mapFrontEl.style.pointerEvents = 'none';
+            }
+        }
+
+        function onPointerDown(e) {
+            if (isNearPortalEdge(e)) {
+                isResizing = true;
+                stopSpinning();
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }
+
+        function onPointerMove(e) {
+            // Update pointer events based on position
+            if (!isResizing) {
+                updatePointerEvents(e);
+            }
+
+            // Update cursor based on position
+            if (!isResizing && isNearPortalEdge(e)) {
+                document.body.style.cursor = 'grab';
+            } else if (!isResizing) {
+                document.body.style.cursor = '';
+            }
+
+            if (!isResizing) return;
+            document.body.style.cursor = 'grabbing';
+            const globeRadius = getGlobeRadiusPixels(mapBack);
+            const distance = getDistanceFromCenter(e);
+            currentPortalRatio = Math.max(PORTAL_MIN_RATIO, Math.min(PORTAL_MAX_RATIO, distance / globeRadius));
+            updatePortal(globeRadius * currentPortalRatio);
+        }
+
+        function onPointerEnd() {
+            isResizing = false;
+            document.body.style.cursor = '';
+        }
+
+        // Capture events at the document level for resize detection
+        document.addEventListener('mousedown', onPointerDown, true);
+        document.addEventListener('touchstart', onPointerDown, { capture: true, passive: false });
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('touchmove', onPointerMove);
+        window.addEventListener('mouseup', onPointerEnd);
+        window.addEventListener('touchend', onPointerEnd);
+    </script>
+</body>
+</html>
