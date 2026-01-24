@@ -105,6 +105,11 @@
             height: 40px;
         }
 
+        /* Portrait overlay hint - hidden by default */
+        .portrait-hint {
+            display: none;
+        }
+
         /* Portrait mode - stack vertically, hide chrome */
         @media (orientation: portrait) {
             header {
@@ -119,6 +124,21 @@
             .map-panel:first-child {
                 border-right: none;
                 border-bottom: 1px solid #1a1a2e;
+            }
+            .portrait-hint {
+                display: block;
+                position: absolute;
+                top: 12px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 10px 16px;
+                border-radius: 8px;
+                font-size: 0.85rem;
+                z-index: 100;
+                pointer-events: none;
+                text-align: center;
             }
         }
     </style>
@@ -162,6 +182,8 @@
             </div>
         </div>
     </div>
+
+    <div class="portrait-hint" id="portrait-hint">Pan and zoom to find your antipodes</div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
@@ -315,12 +337,17 @@
         });
 
         // Stop spinning on click or drag
+        const portraitHint = document.getElementById('portrait-hint');
         function stopSpinning() {
             if (isSpinning) {
                 isSpinning = false;
                 if (animationId) {
                     cancelAnimationFrame(animationId);
                 }
+            }
+            // Hide portrait hint on any interaction
+            if (portraitHint) {
+                portraitHint.style.display = 'none';
             }
         }
 
