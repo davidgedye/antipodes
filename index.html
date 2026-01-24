@@ -304,9 +304,9 @@
             // Update coordinates display
             const coordsEl = document.getElementById('coords');
             if (isSourceLeft) {
-                coordsEl.textContent = `Location: ${center.lat.toFixed(4)}°, ${center.lng.toFixed(4)}° → Antipode: ${antipode.lat.toFixed(4)}°, ${antipode.lng.toFixed(4)}°`;
+                coordsEl.textContent = `Location: ${center.lat.toFixed(2)}°, ${center.lng.toFixed(2)}° → Antipode: ${antipode.lat.toFixed(2)}°, ${antipode.lng.toFixed(2)}°`;
             } else {
-                coordsEl.textContent = `Location: ${antipode.lat.toFixed(4)}°, ${antipode.lng.toFixed(4)}° → Antipode: ${center.lat.toFixed(4)}°, ${center.lng.toFixed(4)}°`;
+                coordsEl.textContent = `Location: ${antipode.lat.toFixed(2)}°, ${antipode.lng.toFixed(2)}° → Antipode: ${center.lat.toFixed(2)}°, ${center.lng.toFixed(2)}°`;
             }
 
             syncing = false;
