@@ -139,6 +139,7 @@
                 z-index: 100;
                 pointer-events: none;
                 text-align: center;
+                white-space: nowrap;
             }
         }
     </style>
@@ -210,12 +211,15 @@
             return Math.log2(desiredGlobeDiameter / 256);
         }
 
+        // Calculate initial zoom before creating maps
+        const initialZoom = calcZoomForContainer(document.getElementById('map-left'));
+
         // Initialize both maps with globe projection
         const mapLeft = new mapboxgl.Map({
             container: 'map-left',
             style: 'mapbox://styles/mapbox/streets-v12',
             center: [startLng, startLat],
-            zoom: 1, // Will be adjusted after load
+            zoom: initialZoom,
             projection: 'globe'
         });
 
@@ -223,7 +227,7 @@
             container: 'map-right',
             style: 'mapbox://styles/mapbox/streets-v12',
             center: [startAntipode.lng, startAntipode.lat],
-            zoom: 1, // Will be adjusted after load
+            zoom: initialZoom,
             projection: 'globe'
         });
 
@@ -232,14 +236,6 @@
         mapLeft.touchZoomRotate.disableRotation();
         mapRight.dragRotate.disable();
         mapRight.touchZoomRotate.disableRotation();
-
-        // Set proper zoom once containers are sized
-        function setInitialZoom() {
-            const zoom = calcZoomForContainer(document.getElementById('map-left'));
-            mapLeft.setZoom(zoom);
-            mapRight.setZoom(zoom);
-        }
-        mapLeft.on('load', setInitialZoom);
 
         // Add atmosphere effect when globe loads
         mapLeft.on('style.load', () => {
