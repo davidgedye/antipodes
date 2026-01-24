@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## User Preferences
+
+- When I say "pages" I mean the `gh-pages` branch (applies to all GitHub projects)
+
 ## Project Overview
 
 Antipodes is a single-page web application that displays two synchronized 3D globes showing antipodal points on Earth (the point diametrically opposite any selected location). Built with vanilla HTML/CSS/JavaScript using Mapbox GL JS for 3D globe rendering and Turf.js for geographic calculations.
