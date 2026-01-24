@@ -237,6 +237,13 @@
         mapRight.dragRotate.disable();
         mapRight.touchZoomRotate.disableRotation();
 
+        // Recalculate zoom on orientation/resize change
+        window.addEventListener('resize', () => {
+            const zoom = calcZoomForContainer(document.getElementById('map-left'));
+            mapLeft.setZoom(zoom);
+            mapRight.setZoom(zoom);
+        });
+
         // Add atmosphere effect when globe loads
         mapLeft.on('style.load', () => {
             mapLeft.setFog({
