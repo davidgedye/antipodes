@@ -205,6 +205,12 @@
             projection: 'globe'
         });
 
+        // Disable rotation (keep pinch zoom but prevent bearing changes)
+        mapLeft.dragRotate.disable();
+        mapLeft.touchZoomRotate.disableRotation();
+        mapRight.dragRotate.disable();
+        mapRight.touchZoomRotate.disableRotation();
+
         // Set proper zoom once containers are sized
         function setInitialZoom() {
             const zoom = calcZoomForContainer(document.getElementById('map-left'));

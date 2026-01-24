@@ -226,6 +226,12 @@
             projection: 'globe'
         });
 
+        // Disable rotation (keep pinch zoom but prevent bearing changes)
+        mapBack.dragRotate.disable();
+        mapBack.touchZoomRotate.disableRotation();
+        mapFront.dragRotate.disable();
+        mapFront.touchZoomRotate.disableRotation();
+
         // Add atmosphere effect
         [mapBack, mapFront].forEach(map => {
             map.on('style.load', () => {
