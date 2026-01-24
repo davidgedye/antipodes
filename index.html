@@ -147,7 +147,7 @@
 <body>
     <header>
         <h1>Antipodes</h1>
-        <div class="instructions">Click to stop spinning, then pan and zoom to explore</div>
+        <div class="instructions" id="instructions">Click to stop spinning, then pan and zoom to explore</div>
         <div class="coords" id="coords"></div>
     </header>
     <div class="container">
@@ -341,6 +341,7 @@
 
         // Stop spinning on click or drag
         const portraitHint = document.getElementById('portrait-hint');
+        const instructions = document.getElementById('instructions');
         function stopSpinning() {
             if (isSpinning) {
                 isSpinning = false;
@@ -348,9 +349,12 @@
                     cancelAnimationFrame(animationId);
                 }
             }
-            // Hide portrait hint on any interaction
+            // Hide hints on any interaction
             if (portraitHint) {
                 portraitHint.style.display = 'none';
+            }
+            if (instructions) {
+                instructions.style.display = 'none';
             }
         }
 
