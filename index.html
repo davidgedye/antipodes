@@ -191,17 +191,25 @@
     <script>
         mapboxgl.accessToken = 'pk.eyJ1IjoiZGF2aWRnZWR5ZSIsImEiOiJjbWtvejk5bWkwYnBxM3JxNTE0ZjN6ZmowIn0.CaVScVkAo9uhpyebGqaQNg';
 
-        // Random starting point
-        const startLng = Math.random() * 360 - 180;
-        const startLat = Math.random() * 140 - 70; // Avoid extreme poles for better view
+        // Tour of antipodal pairs
+        const tourPoints = [
+            { lat: -35.9656, lng: 174.4117, zoom: 5.18 },  // New Zealand
+            { lat: -32.0146, lng: 115.5182, zoom: 8.22 },  // Perth, Australia
+            { lat: 14.1696, lng: 108.1670, zoom: 5.33 },   // Vietnam
+            { lat: 39.8401, lng: 116.3763, zoom: 4.75 },   // Beijing, China
+            { lat: 20.3582, lng: -156.2299, zoom: 5.43 },  // Hawaii
+            { lat: 74.3200, lng: -42.3189, zoom: 3.00 },   // Greenland
+            { lat: 47.8640, lng: 106.9577, zoom: 3.65 },   // Mongolia
+            { lat: -0.5784, lng: -65.6990, zoom: 4.46 },   // Amazon
+        ];
+
+        // Start at first tour point
+        const startLng = tourPoints[0].lng;
+        const startLat = tourPoints[0].lat;
         const startAntipode = {
             lng: startLng > 0 ? startLng - 180 : startLng + 180,
             lat: -startLat
         };
-
-        // Random initial bearing for great circle path (0-360 degrees)
-        let currentBearing = Math.random() * 360;
-        const distancePerFrame = 25; // km per frame - slower on slow devices, always smooth
 
         // Calculate zoom to fit globe with padding in container
         function calcZoomForContainer(container) {
@@ -312,42 +320,44 @@
         // Initial sync after maps load
         mapLeft.on('load', () => syncMaps(mapLeft, mapRight, true));
 
-        // Spinning animation
-        let isSpinning = true;
-        let animationId = null;
+        let isTourRunning = true;
+        let currentTourIndex = 0;
+        let tourTimeoutId = null;
 
-        function spin() {
-            if (!isSpinning) return;
+        function runTour() {
+            if (!isTourRunning) return;
 
-            const center = mapLeft.getCenter();
-            const currentPoint = turf.point([center.lng, center.lat]);
+            const point = tourPoints[currentTourIndex];
+            mapLeft.flyTo({
+                center: [point.lng, point.lat],
+                zoom: point.zoom,
+                duration: 6000,
+                essential: true
+            });
 
-            // Calculate next point along the great circle
-            const destination = turf.destination(currentPoint, distancePerFrame, currentBearing, { units: 'kilometers' });
-            const [newLng, newLat] = destination.geometry.coordinates;
-
-            // Calculate the forward bearing to continue the great circle from the new point
-            const reverseBearing = turf.bearing(destination, currentPoint);
-            currentBearing = (reverseBearing + 180) % 360;
-
-            mapLeft.setCenter([newLng, newLat]);
-            animationId = requestAnimationFrame(spin);
+            // After flight completes (6s) + pause (3s), go to next point
+            tourTimeoutId = setTimeout(() => {
+                if (!isTourRunning) return;
+                currentTourIndex = (currentTourIndex + 1) % tourPoints.length;
+                runTour();
+            }, 9000);
         }
 
-        // Start spinning after map loads
+        // Start tour after map loads
         mapLeft.on('load', () => {
-            spin();
+            runTour();
         });
 
-        // Stop spinning on click or drag
+        // Stop tour on click or drag
         const portraitHint = document.getElementById('portrait-hint');
         const instructions = document.getElementById('instructions');
-        function stopSpinning() {
-            if (isSpinning) {
-                isSpinning = false;
-                if (animationId) {
-                    cancelAnimationFrame(animationId);
+        function stopTour() {
+            if (isTourRunning) {
+                isTourRunning = false;
+                if (tourTimeoutId) {
+                    clearTimeout(tourTimeoutId);
                 }
+                mapLeft.stop();
             }
             // Hide hints on any interaction
             if (portraitHint) {
@@ -358,19 +368,19 @@
             }
         }
 
-        mapLeft.on('mousedown', stopSpinning);
-        mapRight.on('mousedown', stopSpinning);
-        mapLeft.on('touchstart', stopSpinning);
-        mapRight.on('touchstart', stopSpinning);
+        mapLeft.on('mousedown', stopTour);
+        mapRight.on('mousedown', stopTour);
+        mapLeft.on('touchstart', stopTour);
+        mapRight.on('touchstart', stopTour);
 
         // Search functionality
         const searchBox = document.getElementById('search');
-        searchBox.addEventListener('focus', stopSpinning);
+        searchBox.addEventListener('focus', stopTour);
         searchBox.addEventListener('keydown', async (e) => {
             if (e.key === 'Enter') {
                 const query = searchBox.value.trim();
                 if (!query) return;
-                stopSpinning();
+                stopTour();
 
                 const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&limit=1`;
 
@@ -389,6 +399,15 @@
                 } catch (err) {
                     console.error('Search failed:', err);
                 }
+            }
+        });
+
+        // Press 'z' to log current position for tour capture
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'z') {
+                const center = mapLeft.getCenter();
+                const zoom = mapLeft.getZoom();
+                console.log(`{ lat: ${center.lat.toFixed(4)}, lng: ${center.lng.toFixed(4)}, zoom: ${zoom.toFixed(2)} }`);
             }
         });
     </script>
