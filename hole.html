@@ -31,6 +31,7 @@
         /* Back map (location) - fully visible underneath */
         #map-back {
             z-index: 1;
+            clip-path: none;
         }
 
         /* Front map (antipode/portal) - on top, clipped to portal shape */
@@ -360,7 +361,14 @@
 
         // Resize portal by dragging near the edge
         let isResizing = false;
+        let isFallingThrough = false;
         const RESIZE_THRESHOLD = 30; // pixels from edge to trigger resize
+
+        // Tap detection for fall-through
+        let tapStartTime = 0;
+        let tapStartPos = { x: 0, y: 0 };
+        const TAP_MAX_DURATION = 300; // ms
+        const TAP_MAX_DISTANCE = 10; // pixels
 
         function getDistanceFromCenter(e) {
             const cx = window.innerWidth / 2;
@@ -371,7 +379,9 @@
         }
 
         function getCurrentPortalRadius() {
-            return getGlobeRadiusPixels(mapBack) * currentPortalRatio;
+            const globeRadius = getGlobeRadiusPixels(mapBack);
+            const maxRadius = Math.min(window.innerWidth, window.innerHeight) * 0.45;
+            return Math.min(globeRadius * currentPortalRatio, maxRadius);
         }
 
         function isNearPortalEdge(e) {
@@ -387,16 +397,117 @@
         }
 
         const mapFrontEl = document.getElementById('map-front');
+        const mapBackEl = document.getElementById('map-back');
+        let isFlipped = false;
 
         function updatePointerEvents(e) {
+            // Only toggle the portal map's pointer-events; outer map always receives events
+            const portalMap = isFlipped ? mapBackEl : mapFrontEl;
             if (isInsidePortal(e)) {
-                mapFrontEl.style.pointerEvents = 'auto';
+                portalMap.style.pointerEvents = 'auto';
             } else {
-                mapFrontEl.style.pointerEvents = 'none';
+                portalMap.style.pointerEvents = 'none';
             }
         }
 
+        // Fall-through animation
+        function fallThrough() {
+            if (isFallingThrough) {
+                console.log('fallThrough blocked - already in progress');
+                return;
+            }
+            console.log('fallThrough started');
+            isFallingThrough = true;
+            stopSpinning();
+
+            const startRatio = currentPortalRatio;
+            const expandRatio = 1.5; // Expand beyond the globe
+            const duration = 800; // ms total
+            const startTime = performance.now();
+            let hasSwapped = false;
+
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                let displayRatio;
+                if (progress < 0.5) {
+                    // First half: expand
+                    const expandProgress = progress * 2;
+                    const eased = 1 - Math.pow(1 - expandProgress, 2);
+                    displayRatio = startRatio + (expandRatio - startRatio) * eased;
+                } else {
+                    // Second half: contract
+                    const contractProgress = (progress - 0.5) * 2;
+                    const eased = Math.pow(contractProgress, 2);
+                    displayRatio = expandRatio - (expandRatio - startRatio) * eased;
+                }
+
+                // At the midpoint, swap the maps
+                if (progress >= 0.5 && !hasSwapped) {
+                    hasSwapped = true;
+                    swapMaps();
+                }
+
+                const globeRadius = getGlobeRadiusPixels(mapBack);
+                updatePortal(globeRadius * displayRatio);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    currentPortalRatio = startRatio;
+                    isFallingThrough = false;
+                    console.log('fallThrough completed');
+                    logState('fallThrough end');
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        const portalLabel = document.querySelector('.label-front');
+
+        function logState(context) {
+            console.log(`[${context}] isFlipped=${isFlipped}, isFallingThrough=${isFallingThrough}`);
+            console.log(`  mapFront: z=${mapFrontEl.style.zIndex || 'css'}, clip=${mapFrontEl.style.clipPath || 'css'}, ptr=${mapFrontEl.style.pointerEvents || 'css'}`);
+            console.log(`  mapBack: z=${mapBackEl.style.zIndex || 'css'}, clip=${mapBackEl.style.clipPath || 'css'}, ptr=${mapBackEl.style.pointerEvents || 'css'}`);
+        }
+
+        function swapMaps() {
+            isFlipped = !isFlipped;
+            console.log(`swapMaps called, isFlipped now: ${isFlipped}`);
+
+            // Swap the z-index and clip-path
+            if (isFlipped) {
+                mapBackEl.style.zIndex = '2';
+                mapBackEl.style.clipPath = 'var(--portal-clip, circle(0px at 50% 50%))';
+                mapFrontEl.style.zIndex = '1';
+                mapFrontEl.style.clipPath = 'none';
+                portalLabel.textContent = 'Location';
+            } else {
+                mapFrontEl.style.zIndex = '2';
+                mapFrontEl.style.clipPath = 'var(--portal-clip, circle(0px at 50% 50%))';
+                mapBackEl.style.zIndex = '1';
+                mapBackEl.style.clipPath = 'none';
+                portalLabel.textContent = 'Antipode';
+            }
+            logState('after swap');
+        }
+
+        // Debug: press 'd' to dump current state
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'd') {
+                logState('manual dump');
+                console.log(`  --portal-clip: ${getComputedStyle(document.documentElement).getPropertyValue('--portal-clip').substring(0, 50)}...`);
+            }
+        });
+
         function onPointerDown(e) {
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            tapStartTime = performance.now();
+            tapStartPos = { x: clientX, y: clientY };
+
             if (isNearPortalEdge(e)) {
                 isResizing = true;
                 stopSpinning();
@@ -406,8 +517,8 @@
         }
 
         function onPointerMove(e) {
-            // Update pointer events based on position
-            if (!isResizing) {
+            // Update pointer events based on position (not during animation)
+            if (!isResizing && !isFallingThrough) {
                 updatePointerEvents(e);
             }
 
@@ -426,9 +537,34 @@
             updatePortal(globeRadius * currentPortalRatio);
         }
 
-        function onPointerEnd() {
+        function onPointerEnd(e) {
+            const wasResizing = isResizing;
             isResizing = false;
             document.body.style.cursor = '';
+
+            // Check for tap inside portal to trigger fall-through
+            if (!wasResizing && !isFallingThrough && tapStartTime > 0) {
+                const elapsed = performance.now() - tapStartTime;
+                const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+                const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+                const distance = Math.sqrt(
+                    Math.pow(clientX - tapStartPos.x, 2) +
+                    Math.pow(clientY - tapStartPos.y, 2)
+                );
+
+                if (elapsed < TAP_MAX_DURATION && distance < TAP_MAX_DISTANCE) {
+                    // It's a tap - check if inside portal
+                    const cx = window.innerWidth / 2;
+                    const cy = window.innerHeight / 2;
+                    const distFromCenter = Math.sqrt(Math.pow(clientX - cx, 2) + Math.pow(clientY - cy, 2));
+                    const portalRadius = getCurrentPortalRadius();
+
+                    if (distFromCenter < portalRadius - RESIZE_THRESHOLD) {
+                        fallThrough();
+                    }
+                }
+            }
+            tapStartTime = 0; // Reset for next interaction
         }
 
         // Capture events at the document level for resize detection
