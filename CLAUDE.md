@@ -8,15 +8,20 @@ Antipodes is a single-page web application that displays two synchronized 3D glo
 
 ## Development
 
-**No build system** - This is a static HTML site with all code in `index.html`.
+**No build system** - This is a static HTML site.
 
-- **To develop:** Open `index.html` directly in a web browser
+- **To develop:** Run `python3 -m http.server 8000` and open in browser
 - **To deploy:** Push to `gh-pages` branch for GitHub Pages hosting
-- **Live site:** Hosted via GitHub Pages
+- **Live site:** https://davidgedye.github.io/antipodes/
+
+## Entry Points
+
+- **index.html** - Side-by-side dual globe view. In portrait orientation (mobile), stacks vertically and hides UI chrome.
+- **hole.html** - Portal/tunnel view. Shows one globe with a ragged hole revealing the antipode beneath. Tap inside the portal to "fall through" and swap the views. Drag the portal edge to resize.
 
 ## Architecture
 
-The entire application lives in `index.html` (~320 lines):
+### index.html (~350 lines):
 
 - **Dual Map System:** Two Mapbox GL JS maps configured as 3D globes (`projection: 'globe'`)
 - **Synchronization:** When one map moves, the other automatically updates to show the antipodal coordinates via `syncMaps()` function
@@ -27,6 +32,20 @@ The entire application lives in `index.html` (~320 lines):
 - `getAntipode(lng, lat)` - Returns antipodal coordinates: `[lng + 180 or -180, -lat]`
 - `syncMaps(sourceMap, targetMap, isSourceLeft)` - Synchronizes map views with antipodal transformation
 - `spin()` - Animates maps along great circle path using Turf.js `destination()` and `bearing()`
+- `calcZoomForContainer()` - Calculates zoom level to fit globe with padding in any container size
+
+### hole.html (~500 lines):
+
+- **Stacked Maps:** Back map (location) underneath, front map (antipode) on top with CSS clip-path
+- **Ragged Portal:** SVG polygon clip-path with randomized points creates organic tunnel edge
+- **Fall-through Animation:** Tap inside portal to animate expansion, swap maps, and contract
+- **Resize:** Drag near portal edge to resize; pointer events route to correct map based on position
+
+**Key functions:**
+- `generateRaggedPaths()` - Creates randomized polygon for clip-path and SVG ring
+- `fallThrough()` - Animates portal expansion, swaps maps at midpoint, contracts
+- `swapMaps()` - Toggles z-index and clip-path between the two map layers
+- `updatePointerEvents()` - Routes interactions to correct map based on pointer position
 
 ## External Dependencies (CDN)
 
