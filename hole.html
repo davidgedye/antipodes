@@ -53,11 +53,6 @@
             opacity: var(--ring-opacity, 0);
         }
 
-        /* Resize hit area - invisible but captures pointer events */
-        .resize-ring {
-            display: none; /* Handled via JavaScript now */
-        }
-
         /* Labels */
         .label {
             position: absolute;
@@ -131,7 +126,6 @@
         </defs>
         <polygon id="ring-outer" fill="rgba(0,0,0,0.18)" stroke="#2a1a0f" stroke-width="3" filter="url(#ring-shadow)"/>
     </svg>
-    <div class="resize-ring" id="resize-ring"></div>
 
     <div class="label label-front">Antipode</div>
 
@@ -418,11 +412,7 @@
 
         // Fall-through animation
         function fallThrough() {
-            if (isFallingThrough) {
-                console.log('fallThrough blocked - already in progress');
-                return;
-            }
-            console.log('fallThrough started');
+            if (isFallingThrough) return;
             isFallingThrough = true;
             stopSpinning();
 
@@ -463,8 +453,6 @@
                 } else {
                     currentPortalRatio = startRatio;
                     isFallingThrough = false;
-                    console.log('fallThrough completed');
-                    logState('fallThrough end');
                 }
             }
 
@@ -473,15 +461,8 @@
 
         const portalLabel = document.querySelector('.label-front');
 
-        function logState(context) {
-            console.log(`[${context}] isFlipped=${isFlipped}, isFallingThrough=${isFallingThrough}`);
-            console.log(`  mapFront: z=${mapFrontEl.style.zIndex || 'css'}, clip=${mapFrontEl.style.clipPath || 'css'}, ptr=${mapFrontEl.style.pointerEvents || 'css'}`);
-            console.log(`  mapBack: z=${mapBackEl.style.zIndex || 'css'}, clip=${mapBackEl.style.clipPath || 'css'}, ptr=${mapBackEl.style.pointerEvents || 'css'}`);
-        }
-
         function swapMaps() {
             isFlipped = !isFlipped;
-            console.log(`swapMaps called, isFlipped now: ${isFlipped}`);
 
             // Swap the z-index and clip-path
             if (isFlipped) {
@@ -497,16 +478,7 @@
                 mapBackEl.style.clipPath = 'none';
                 portalLabel.textContent = 'Antipode';
             }
-            logState('after swap');
         }
-
-        // Debug: press 'd' to dump current state
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'd') {
-                logState('manual dump');
-                console.log(`  --portal-clip: ${getComputedStyle(document.documentElement).getPropertyValue('--portal-clip').substring(0, 50)}...`);
-            }
-        });
 
         function onPointerDown(e) {
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;

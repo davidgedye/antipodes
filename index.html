@@ -187,7 +187,6 @@
     <div class="portrait-hint" id="portrait-hint">Pan and zoom to find your antipodes</div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
-    <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
     <script>
         mapboxgl.accessToken = 'pk.eyJ1IjoiZGF2aWRnZWR5ZSIsImEiOiJjbWtvejk5bWkwYnBxM3JxNTE0ZjN6ZmowIn0.CaVScVkAo9uhpyebGqaQNg';
 
@@ -399,15 +398,6 @@
                 } catch (err) {
                     console.error('Search failed:', err);
                 }
-            }
-        });
-
-        // Press 'z' to log current position for tour capture
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'z') {
-                const center = mapLeft.getCenter();
-                const zoom = mapLeft.getZoom();
-                console.log(`{ lat: ${center.lat.toFixed(4)}, lng: ${center.lng.toFixed(4)}, zoom: ${zoom.toFixed(2)} }`);
             }
         });
     </script>
