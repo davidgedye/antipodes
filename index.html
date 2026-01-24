@@ -104,6 +104,23 @@
             width: 40px;
             height: 40px;
         }
+
+        /* Portrait mode - stack vertically, hide chrome */
+        @media (orientation: portrait) {
+            header {
+                display: none;
+            }
+            .map-label {
+                display: none;
+            }
+            .container {
+                flex-direction: column;
+            }
+            .map-panel:first-child {
+                border-right: none;
+                border-bottom: 1px solid #1a1a2e;
+            }
+        }
     </style>
 </head>
 <body>
@@ -163,12 +180,20 @@
         let currentBearing = Math.random() * 360;
         const distancePerFrame = 25; // km per frame - slower on slow devices, always smooth
 
+        // Calculate zoom to fit globe with padding in container
+        function calcZoomForContainer(container) {
+            const rect = container.getBoundingClientRect();
+            const minDimension = Math.min(rect.width, rect.height);
+            const desiredGlobeDiameter = minDimension * 0.9; // 5% padding each side
+            return Math.log2(desiredGlobeDiameter / 256);
+        }
+
         // Initialize both maps with globe projection
         const mapLeft = new mapboxgl.Map({
             container: 'map-left',
             style: 'mapbox://styles/mapbox/streets-v12',
             center: [startLng, startLat],
-            zoom: 2,
+            zoom: 1, // Will be adjusted after load
             projection: 'globe'
         });
 
@@ -176,9 +201,17 @@
             container: 'map-right',
             style: 'mapbox://styles/mapbox/streets-v12',
             center: [startAntipode.lng, startAntipode.lat],
-            zoom: 2,
+            zoom: 1, // Will be adjusted after load
             projection: 'globe'
         });
+
+        // Set proper zoom once containers are sized
+        function setInitialZoom() {
+            const zoom = calcZoomForContainer(document.getElementById('map-left'));
+            mapLeft.setZoom(zoom);
+            mapRight.setZoom(zoom);
+        }
+        mapLeft.on('load', setInitialZoom);
 
         // Add atmosphere effect when globe loads
         mapLeft.on('style.load', () => {
