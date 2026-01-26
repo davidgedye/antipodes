@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antipodes - Test</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background: #1a1a2e;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        .coords {
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        .instructions {
+            font-size: 0.85rem;
+            color: yellow;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+        .map-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .map-label {
+            background: #2d2d44;
+            color: white;
+            padding: 0 16px;
+            height: 36px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .search-box {
+            flex: 1;
+            max-width: 300px;
+            padding: 4px 8px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: white;
+            font-size: 0.85rem;
+        }
+        .search-box::placeholder {
+            color: #888;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #888;
+        }
+        .map {
+            flex: 1;
+            min-height: 0;
+        }
+        .map-panel:first-child {
+            border-right: 2px solid #1a1a2e;
+        }
+        .map {
+            position: relative;
+        }
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1;
+        }
+        .crosshair svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        /* Portrait overlay hint - hidden by default */
+        .portrait-hint {
+            display: none;
+        }
+
+        /* Portrait mode - stack vertically, hide chrome */
+        @media (orientation: portrait) {
+            header {
+                display: none;
+            }
+            .map-label {
+                display: none;
+            }
+            .container {
+                flex-direction: column;
+            }
+            .map-panel:first-child {
+                border-right: none;
+                border-bottom: 1px solid #1a1a2e;
+            }
+            .portrait-hint {
+                display: block;
+                position: absolute;
+                top: 12px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 10px 16px;
+                border-radius: 8px;
+                font-size: 0.85rem;
+                z-index: 100;
+                pointer-events: none;
+                text-align: center;
+                white-space: nowrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Antipodes (Test)</h1>
+        <div class="instructions" id="instructions">Pan and zoom to find your antipode</div>
+        <div class="coords" id="coords"></div>
+    </header>
+    <div class="container">
+        <div class="map-panel">
+            <div class="map-label">
+                <span>Location</span>
+                <input type="text" class="search-box" id="search" placeholder="Search city, country, address...">
+            </div>
+            <div class="map" id="map-left">
+                <div class="crosshair">
+                    <svg viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="12" fill="none" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                        <line x1="20" y1="4" x2="20" y2="14" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                        <line x1="20" y1="26" x2="20" y2="36" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                        <line x1="4" y1="20" x2="14" y2="20" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                        <line x1="26" y1="20" x2="36" y2="20" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        <div class="map-panel">
+            <div class="map-label">Antipode</div>
+            <div class="map" id="map-right">
+                <div class="crosshair">
+                    <svg viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="12" fill="none" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                        <line x1="20" y1="4" x2="20" y2="14" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                        <line x1="20" y1="26" x2="20" y2="36" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                        <line x1="4" y1="20" x2="14" y2="20" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                        <line x1="26" y1="20" x2="36" y2="20" stroke="rgba(0,0,0,0.7)" stroke-width="1"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="portrait-hint" id="portrait-hint">Pan and zoom to find your antipode</div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZGF2aWRnZWR5ZSIsImEiOiJjbWtvejk5bWkwYnBxM3JxNTE0ZjN6ZmowIn0.CaVScVkAo9uhpyebGqaQNg';
+
+        // Tour of antipodal pairs
+        const tourPoints = [
+            { lat: -35.9656, lng: 174.4117, zoom: 5.18 },  // New Zealand
+            { lat: -32.0146, lng: 115.5182, zoom: 8.22 },  // Perth, Australia
+            { lat: 14.1696, lng: 108.1670, zoom: 5.33 },   // Vietnam
+            { lat: 39.8401, lng: 116.3763, zoom: 4.75 },   // Beijing, China
+            { lat: 20.3582, lng: -156.2299, zoom: 5.43 },  // Hawaii
+            { lat: 74.3200, lng: -42.3189, zoom: 3.00 },   // Greenland
+            { lat: 47.8640, lng: 106.9577, zoom: 3.65 },   // Mongolia
+            { lat: -0.5784, lng: -65.6990, zoom: 4.46 },   // Amazon
+        ];
+
+        // Start at first tour point
+        const startLng = tourPoints[0].lng;
+        const startLat = tourPoints[0].lat;
+        const startAntipode = {
+            lng: startLng > 0 ? startLng - 180 : startLng + 180,
+            lat: -startLat
+        };
+
+        // Calculate zoom to fit globe with padding in container
+        function calcZoomForContainer(container) {
+            const rect = container.getBoundingClientRect();
+            const minDimension = Math.min(rect.width, rect.height);
+            const desiredGlobeDiameter = minDimension * 0.9; // 5% padding each side
+            return Math.log2(desiredGlobeDiameter / 256);
+        }
+
+        // Calculate initial zoom before creating maps
+        const initialZoom = calcZoomForContainer(document.getElementById('map-left'));
+
+        // Initialize both maps with globe projection
+        const mapLeft = new mapboxgl.Map({
+            container: 'map-left',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [startLng, startLat],
+            zoom: initialZoom,
+            projection: 'globe'
+        });
+
+        const mapRight = new mapboxgl.Map({
+            container: 'map-right',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [startAntipode.lng, startAntipode.lat],
+            zoom: initialZoom,
+            projection: 'globe'
+        });
+
+        // Disable rotation (keep pinch zoom but prevent bearing changes)
+        mapLeft.dragRotate.disable();
+        mapLeft.touchZoomRotate.disableRotation();
+        mapRight.dragRotate.disable();
+        mapRight.touchZoomRotate.disableRotation();
+
+        // Recalculate zoom on orientation/resize change
+        window.addEventListener('resize', () => {
+            const zoom = calcZoomForContainer(document.getElementById('map-left'));
+            mapLeft.setZoom(zoom);
+            mapRight.setZoom(zoom);
+        });
+
+        // Add International Date Line (180° meridian) to a map
+        function addDateLine(map) {
+            map.addSource('dateline', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': [
+                            [180, 90],
+                            [180, -90]
+                        ]
+                    }
+                }
+            });
+
+            map.addLayer({
+                'id': 'dateline-layer',
+                'type': 'line',
+                'source': 'dateline',
+                'paint': {
+                    'line-color': '#ff6600',
+                    'line-width': 2,
+                    'line-dasharray': [4, 4]
+                }
+            });
+        }
+
+        // Add atmosphere effect and date line when globe loads
+        mapLeft.on('style.load', () => {
+            mapLeft.setFog({
+                color: 'rgb(186, 210, 235)',
+                'high-color': 'rgb(36, 92, 223)',
+                'horizon-blend': 0.02,
+                'space-color': 'rgb(11, 11, 25)',
+                'star-intensity': 0.6
+            });
+            addDateLine(mapLeft);
+        });
+
+        mapRight.on('style.load', () => {
+            mapRight.setFog({
+                color: 'rgb(186, 210, 235)',
+                'high-color': 'rgb(36, 92, 223)',
+                'horizon-blend': 0.02,
+                'space-color': 'rgb(11, 11, 25)',
+                'star-intensity': 0.6
+            });
+            addDateLine(mapRight);
+        });
+
+        // Calculate antipode coordinates
+        function getAntipode(lng, lat) {
+            return {
+                lng: lng > 0 ? lng - 180 : lng + 180,
+                lat: -lat
+            };
+        }
+
+        // Sync flag to prevent infinite loops
+        let syncing = false;
+
+        // Sync function
+        function syncMaps(sourceMap, targetMap, isSourceLeft) {
+            if (syncing) return;
+            syncing = true;
+
+            const center = sourceMap.getCenter();
+            const zoom = sourceMap.getZoom();
+            const bearing = sourceMap.getBearing();
+            const pitch = sourceMap.getPitch();
+            const antipode = getAntipode(center.lng, center.lat);
+
+            targetMap.jumpTo({
+                center: [antipode.lng, antipode.lat],
+                zoom: zoom,
+                bearing: -bearing, // Mirror the bearing
+                pitch: pitch
+            });
+
+            // Update coordinates display
+            const coordsEl = document.getElementById('coords');
+            if (isSourceLeft) {
+                coordsEl.textContent = `Location: ${center.lat.toFixed(2)}°, ${center.lng.toFixed(2)}° → Antipode: ${antipode.lat.toFixed(2)}°, ${antipode.lng.toFixed(2)}°`;
+            } else {
+                coordsEl.textContent = `Location: ${antipode.lat.toFixed(2)}°, ${antipode.lng.toFixed(2)}° → Antipode: ${center.lat.toFixed(2)}°, ${center.lng.toFixed(2)}°`;
+            }
+
+            syncing = false;
+        }
+
+        // Attach event listeners for move and zoom
+        mapLeft.on('move', () => syncMaps(mapLeft, mapRight, true));
+        mapRight.on('move', () => syncMaps(mapRight, mapLeft, false));
+
+        // Initial sync after maps load
+        mapLeft.on('load', () => syncMaps(mapLeft, mapRight, true));
+
+        let isTourRunning = true;
+        let currentTourIndex = 0;
+        let tourTimeoutId = null;
+
+        function runTour() {
+            if (!isTourRunning) return;
+
+            const point = tourPoints[currentTourIndex];
+            mapLeft.flyTo({
+                center: [point.lng, point.lat],
+                zoom: point.zoom,
+                duration: 6000,
+                essential: true
+            });
+
+            // After flight completes (6s) + pause (3s), go to next point
+            tourTimeoutId = setTimeout(() => {
+                if (!isTourRunning) return;
+                currentTourIndex = (currentTourIndex + 1) % tourPoints.length;
+                runTour();
+            }, 9000);
+        }
+
+        // Start tour after map loads
+        mapLeft.on('load', () => {
+            runTour();
+        });
+
+        // Stop tour on click or drag
+        const portraitHint = document.getElementById('portrait-hint');
+        const instructions = document.getElementById('instructions');
+        function stopTour() {
+            if (isTourRunning) {
+                isTourRunning = false;
+                if (tourTimeoutId) {
+                    clearTimeout(tourTimeoutId);
+                }
+                mapLeft.stop();
+            }
+            // Hide hints on any interaction
+            if (portraitHint) {
+                portraitHint.style.display = 'none';
+            }
+            if (instructions) {
+                instructions.style.display = 'none';
+            }
+        }
+
+        mapLeft.on('mousedown', stopTour);
+        mapRight.on('mousedown', stopTour);
+        mapLeft.on('touchstart', stopTour);
+        mapRight.on('touchstart', stopTour);
+
+        // Search functionality
+        const searchBox = document.getElementById('search');
+        searchBox.addEventListener('focus', stopTour);
+        searchBox.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                const query = searchBox.value.trim();
+                if (!query) return;
+                stopTour();
+
+                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&limit=1`;
+
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (data.features && data.features.length > 0) {
+                        const [lng, lat] = data.features[0].center;
+                        mapLeft.flyTo({
+                            center: [lng, lat],
+                            zoom: 10,
+                            essential: true
+                        });
+                    }
+                } catch (err) {
+                    console.error('Search failed:', err);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
