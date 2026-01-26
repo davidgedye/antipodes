@@ -252,24 +252,23 @@
         });
 
         // Add International Date Line to a map
+        // Data source: Natural Earth (public domain)
         function addDateLine(map) {
-            // Actual IDL path with zigzags around territories
-            const dateLineCoords = [
-                [180, 90],           // North Pole
-                [180, 75],           // Arctic
-                [-169, 67],          // Bering Strait - east of Russia
-                [-169, 65.5],        // Chukotka deviation
-                [172, 53],           // West of Aleutians
-                [180, 48],           // Back to 180°
-                [180, 5],            // Pacific
-                [-172.5, 5],         // Kiribati deviation (west)
-                [-172.5, -5],        // Kiribati
-                [180, -5],           // Back to 180°
-                [180, -12.5],        // Approaching Fiji
-                [-172, -15],         // East of Fiji
-                [-172, -22],         // Tonga deviation
-                [-180, -48],         // South Pacific
-                [-180, -90]          // South Pole
+            // Simplified from Natural Earth ne_110m_geographic_lines
+            // MultiLineString converted to connected segments
+            const dateLineSegments = [
+                // Segment 5: North pole to 75°N (along 180°)
+                [[180, 90], [180, 75]],
+                // Segment 4: Arctic zigzag (Russia/Bering Strait area)
+                [[-180, 75], [-169, 68], [-169, 65.5], [180, 60]],
+                // Segment 3: 60°N to equator area (along 180° with Russia deviation)
+                [[180, 60], [170, 53], [180, 48], [180, -2.5]],
+                // Segment 2: Pacific zigzag (Kiribati, Samoa, Fiji, Tonga)
+                [[180, -2.5], [-172.5, -2.5], [-158.5, -2.5], [-158.5, 5], [-150, 5],
+                 [-150, -11.6], [-156, -11.6], [-156, -5.8], [-172.5, -5.8],
+                 [-172.5, -15], [-172.5, -45], [-180, -51]],
+                // Segment 1: South Pacific to South Pole (along 180°)
+                [[180, -51], [180, -90]]
             ];
 
             map.addSource('dateline', {
@@ -277,8 +276,8 @@
                 'data': {
                     'type': 'Feature',
                     'geometry': {
-                        'type': 'LineString',
-                        'coordinates': dateLineCoords
+                        'type': 'MultiLineString',
+                        'coordinates': dateLineSegments
                     }
                 }
             });
