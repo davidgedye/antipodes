@@ -251,18 +251,34 @@
             mapRight.setZoom(zoom);
         });
 
-        // Add International Date Line (180° meridian) to a map
+        // Add International Date Line to a map
         function addDateLine(map) {
+            // Actual IDL path with zigzags around territories
+            const dateLineCoords = [
+                [180, 90],           // North Pole
+                [180, 75],           // Arctic
+                [-169, 67],          // Bering Strait - east of Russia
+                [-169, 65.5],        // Chukotka deviation
+                [172, 53],           // West of Aleutians
+                [180, 48],           // Back to 180°
+                [180, 5],            // Pacific
+                [-172.5, 5],         // Kiribati deviation (west)
+                [-172.5, -5],        // Kiribati
+                [180, -5],           // Back to 180°
+                [180, -12.5],        // Approaching Fiji
+                [-172, -15],         // East of Fiji
+                [-172, -22],         // Tonga deviation
+                [-180, -48],         // South Pacific
+                [-180, -90]          // South Pole
+            ];
+
             map.addSource('dateline', {
                 'type': 'geojson',
                 'data': {
                     'type': 'Feature',
                     'geometry': {
                         'type': 'LineString',
-                        'coordinates': [
-                            [180, 90],
-                            [180, -90]
-                        ]
+                        'coordinates': dateLineCoords
                     }
                 }
             });
