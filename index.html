@@ -251,7 +251,35 @@
             mapRight.setZoom(zoom);
         });
 
-        // Add atmosphere effect when globe loads
+        // Add International Date Line (180° meridian) to a map
+        function addDateLine(map) {
+            map.addSource('dateline', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': [
+                            [180, 90],
+                            [180, -90]
+                        ]
+                    }
+                }
+            });
+
+            map.addLayer({
+                'id': 'dateline-layer',
+                'type': 'line',
+                'source': 'dateline',
+                'paint': {
+                    'line-color': '#ff6600',
+                    'line-width': 2,
+                    'line-dasharray': [4, 4]
+                }
+            });
+        }
+
+        // Add atmosphere effect and date line when globe loads
         mapLeft.on('style.load', () => {
             mapLeft.setFog({
                 color: 'rgb(186, 210, 235)',
@@ -260,6 +288,7 @@
                 'space-color': 'rgb(11, 11, 25)',
                 'star-intensity': 0.6
             });
+            addDateLine(mapLeft);
         });
 
         mapRight.on('style.load', () => {
@@ -270,6 +299,7 @@
                 'space-color': 'rgb(11, 11, 25)',
                 'star-intensity': 0.6
             });
+            addDateLine(mapRight);
         });
 
         // Calculate antipode coordinates

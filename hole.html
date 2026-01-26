@@ -226,7 +226,35 @@
         mapFront.dragRotate.disable();
         mapFront.touchZoomRotate.disableRotation();
 
-        // Add atmosphere effect
+        // Add International Date Line (180° meridian) to a map
+        function addDateLine(map) {
+            map.addSource('dateline', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': [
+                            [180, 90],
+                            [180, -90]
+                        ]
+                    }
+                }
+            });
+
+            map.addLayer({
+                'id': 'dateline-layer',
+                'type': 'line',
+                'source': 'dateline',
+                'paint': {
+                    'line-color': '#ff6600',
+                    'line-width': 2,
+                    'line-dasharray': [4, 4]
+                }
+            });
+        }
+
+        // Add atmosphere effect and date line
         [mapBack, mapFront].forEach(map => {
             map.on('style.load', () => {
                 map.setFog({
@@ -236,6 +264,7 @@
                     'space-color': 'rgb(11, 11, 25)',
                     'star-intensity': 0.6
                 });
+                addDateLine(map);
             });
         });
 
