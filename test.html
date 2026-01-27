@@ -251,50 +251,7 @@
             mapRight.setZoom(zoom);
         });
 
-        // Add International Date Line to a map
-        // Data source: Natural Earth (public domain)
-        function addDateLine(map) {
-            // Simplified from Natural Earth ne_110m_geographic_lines
-            // MultiLineString converted to connected segments
-            const dateLineSegments = [
-                // Segment 5: North pole to 75°N (along 180°)
-                [[180, 90], [180, 75]],
-                // Segment 4: Arctic zigzag (Russia/Bering Strait area)
-                [[-180, 75], [-169, 68], [-169, 65.5], [180, 60]],
-                // Segment 3: 60°N to equator area (along 180° with Russia deviation)
-                [[180, 60], [170, 53], [180, 48], [180, -2.5]],
-                // Segment 2: Pacific zigzag (Kiribati, Samoa, Fiji, Tonga)
-                [[180, -2.5], [-172.5, -2.5], [-158.5, -2.5], [-158.5, 5], [-150, 5],
-                 [-150, -11.6], [-156, -11.6], [-156, -5.8], [-172.5, -5.8],
-                 [-172.5, -15], [-172.5, -45], [-180, -51]],
-                // Segment 1: South Pacific to South Pole (along 180°)
-                [[180, -51], [180, -90]]
-            ];
-
-            map.addSource('dateline', {
-                'type': 'geojson',
-                'data': {
-                    'type': 'Feature',
-                    'geometry': {
-                        'type': 'MultiLineString',
-                        'coordinates': dateLineSegments
-                    }
-                }
-            });
-
-            map.addLayer({
-                'id': 'dateline-layer',
-                'type': 'line',
-                'source': 'dateline',
-                'paint': {
-                    'line-color': '#ff6600',
-                    'line-width': 2,
-                    'line-dasharray': [4, 4]
-                }
-            });
-        }
-
-        // Add atmosphere effect and date line when globe loads
+        // Add atmosphere effect when globe loads
         mapLeft.on('style.load', () => {
             mapLeft.setFog({
                 color: 'rgb(186, 210, 235)',
@@ -303,7 +260,6 @@
                 'space-color': 'rgb(11, 11, 25)',
                 'star-intensity': 0.6
             });
-            addDateLine(mapLeft);
         });
 
         mapRight.on('style.load', () => {
@@ -314,7 +270,6 @@
                 'space-color': 'rgb(11, 11, 25)',
                 'star-intensity': 0.6
             });
-            addDateLine(mapRight);
         });
 
         // Calculate antipode coordinates
