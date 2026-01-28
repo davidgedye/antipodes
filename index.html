@@ -400,6 +400,110 @@
                 }
             }
         });
+
+        // Geographic lines functionality
+        function generateLatitudeLine(lat) {
+            const coords = [];
+            for (let lng = -180; lng <= 180; lng += 2) {
+                coords.push([lng, lat]);
+            }
+            return {
+                type: 'Feature',
+                geometry: {
+                    type: 'LineString',
+                    coordinates: coords
+                }
+            };
+        }
+
+        function generateLongitudeLine(lng) {
+            // Great circle through the poles at this longitude
+            // Goes from south pole up one side, then down the other (antipodal longitude)
+            const coords = [];
+            const antipodeLng = lng > 0 ? lng - 180 : lng + 180;
+
+            // Up from south pole to north pole on clicked longitude
+            for (let lat = -90; lat <= 90; lat += 2) {
+                coords.push([lng, lat]);
+            }
+            // Down from north pole to south pole on antipodal longitude
+            for (let lat = 90; lat >= -90; lat -= 2) {
+                coords.push([antipodeLng, lat]);
+            }
+            // Close the loop
+            coords.push([lng, -90]);
+
+            return {
+                type: 'Feature',
+                geometry: {
+                    type: 'LineString',
+                    coordinates: coords
+                }
+            };
+        }
+
+        function addGeoLineLayer(map, id, color) {
+            map.addSource(id, {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+            map.addLayer({
+                id: id,
+                type: 'line',
+                source: id,
+                paint: {
+                    'line-color': color,
+                    'line-width': 2,
+                    'line-opacity': 0.8
+                }
+            });
+        }
+
+        function addAllLineLayers(map) {
+            addGeoLineLayer(map, 'latitude-line-north', '#ff4444');
+            addGeoLineLayer(map, 'latitude-line-south', '#ff4444');
+            addGeoLineLayer(map, 'longitude-line', '#44aaff');
+        }
+
+        function updateLines(lat, lng) {
+            const northLatData = {
+                type: 'FeatureCollection',
+                features: [generateLatitudeLine(Math.abs(lat))]
+            };
+            const southLatData = {
+                type: 'FeatureCollection',
+                features: [generateLatitudeLine(-Math.abs(lat))]
+            };
+            const lngData = {
+                type: 'FeatureCollection',
+                features: [generateLongitudeLine(lng)]
+            };
+
+            [mapLeft, mapRight].forEach(map => {
+                const northSrc = map.getSource('latitude-line-north');
+                const southSrc = map.getSource('latitude-line-south');
+                const lngSrc = map.getSource('longitude-line');
+                if (northSrc) northSrc.setData(northLatData);
+                if (southSrc) southSrc.setData(southLatData);
+                if (lngSrc) lngSrc.setData(lngData);
+            });
+        }
+
+        // Add layers when maps load
+        mapLeft.on('load', () => {
+            addAllLineLayers(mapLeft);
+        });
+        mapRight.on('load', () => {
+            addAllLineLayers(mapRight);
+        });
+
+        // Click to add lines
+        function onMapClick(e) {
+            updateLines(e.lngLat.lat, e.lngLat.lng);
+        }
+
+        mapLeft.on('click', onMapClick);
+        mapRight.on('click', onMapClick);
     </script>
 </body>
 </html>
