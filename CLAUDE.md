@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## User Preferences
 
-- When I say "pages" I mean the `gh-pages` branch (applies to all GitHub projects)
+- When I say "pages" I mean the `master` branch (applies to all GitHub projects)
 
 ## Project Overview
 
@@ -15,7 +15,7 @@ Antipodes is a single-page web application that displays two synchronized 3D glo
 **No build system** - This is a static HTML site.
 
 - **To develop:** Run `python3 -m http.server 8000` and open in browser
-- **To deploy:** Push to `gh-pages` branch for GitHub Pages hosting
+- **To deploy:** Push to `master` branch for GitHub Pages hosting
 - **Live site:** https://davidgedye.github.io/antipodes/
 
 ## File Structure

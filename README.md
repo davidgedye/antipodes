@@ -36,7 +36,7 @@ open http://localhost:8000
 
 ## Deployment
 
-Push to the `gh-pages` branch for GitHub Pages hosting.
+Push to the `master` branch for GitHub Pages hosting.
 
 ## Dependencies
 
