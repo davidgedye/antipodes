@@ -82,6 +82,21 @@
             outline: none;
             border-color: #888;
         }
+        .locate-btn {
+            background: none;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #aaa;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            line-height: 1;
+            white-space: nowrap;
+        }
+        .locate-btn:hover {
+            border-color: #888;
+            color: white;
+        }
         .map {
             flex: 1;
             min-height: 0;
@@ -155,6 +170,7 @@
             <div class="map-label">
                 <span>Location</span>
                 <input type="text" class="search-box" id="search" placeholder="Search city, country, address...">
+                <button class="locate-btn" id="locate-btn" title="Go to my location">&#9678; My location</button>
             </div>
             <div class="map" id="map-left">
                 <div class="crosshair">
@@ -504,6 +520,24 @@
 
         mapLeft.on('click', onMapClick);
         mapRight.on('click', onMapClick);
+
+        // Geolocation
+        document.getElementById('locate-btn').addEventListener('click', () => {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    stopTour();
+                    mapLeft.flyTo({
+                        center: [position.coords.longitude, position.coords.latitude],
+                        zoom: 10,
+                        essential: true
+                    });
+                },
+                () => {
+                    alert('Unable to retrieve your location.');
+                }
+            );
+        });
     </script>
 </body>
 </html>
